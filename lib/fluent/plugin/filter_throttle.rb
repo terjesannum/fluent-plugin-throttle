@@ -149,7 +149,7 @@ module Fluent::Plugin
     end
 
     def log_rate_back_down(now, group, counter)
-      log.info("rate back down", log_items(now, group, counter))
+      log.warn("rate back down", log_items(now, group, counter))
     end
 
     def log_items(now, group, counter)
