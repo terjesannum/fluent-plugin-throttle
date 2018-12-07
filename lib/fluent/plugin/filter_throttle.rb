@@ -101,9 +101,9 @@ module Fluent::Plugin
         # wait until rate drops back down (if enabled).
         if counter.bucket_count == -1 and @group_reset_rate_s != -1
           if counter.aprox_rate < @group_reset_rate_s
-            log_rate_back_down(now, group, counter)
+            log_rate_back_down(now, group, counter, record)
           else
-            log_rate_limit_exceeded(now, group, counter)
+            log_rate_limit_exceeded(now, group, counter, record)
             return rate_limit_exceeded
           end
         end
@@ -114,7 +114,7 @@ module Fluent::Plugin
       else
         # if current time period credit is exhausted, drop the record.
         if counter.bucket_count == -1
-          log_rate_limit_exceeded(now, group, counter)
+          log_rate_limit_exceeded(now, group, counter, record)
           return rate_limit_exceeded
         end
       end
@@ -123,7 +123,7 @@ module Fluent::Plugin
 
       # if we are out of credit, we drop logs for the rest of the time period.
       if counter.bucket_count > @group_bucket_limit
-        log_rate_limit_exceeded(now, group, counter)
+        log_rate_limit_exceeded(now, group, counter, record)
         counter.bucket_count = -1
         return rate_limit_exceeded
       end
@@ -139,26 +139,30 @@ module Fluent::Plugin
       end
     end
 
-    def log_rate_limit_exceeded(now, group, counter)
+    def log_rate_limit_exceeded(now, group, counter, record)
       emit = counter.last_warning == nil ? true \
         : (now - counter.last_warning) >= @group_warning_delay_s
       if emit
-        log.warn("rate exceeded", log_items(now, group, counter))
+        log.warn("log throttle: rate exceeded", log_items(now, group, counter, record))
         counter.last_warning = now
       end
     end
 
-    def log_rate_back_down(now, group, counter)
-      log.warn("rate back down", log_items(now, group, counter))
+    def log_rate_back_down(now, group, counter, record)
+      log.warn("log throttle: rate back down", log_items(now, group, counter, record))
     end
 
-    def log_items(now, group, counter)
+    def log_items(now, group, counter, record)
       since_last_reset = now - counter.bucket_last_reset
       rate = since_last_reset > 0 ? (counter.bucket_count / since_last_reset).round : Float::INFINITY
       aprox_rate = counter.aprox_rate
       rate = aprox_rate if aprox_rate > rate
 
       {'group_key': group,
+       'kubernetes': { 'namespace_name' => record['kubernetes']['namespace_name'],
+                       'pod_name' => record['kubernetes']['pod_name'],
+                       'container_name' => record['kubernetes']['container_name']
+                     },
        'rate_s': rate,
        'period_s': @group_bucket_period_s,
        'limit': @group_bucket_limit,
