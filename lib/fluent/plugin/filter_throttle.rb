@@ -143,13 +143,13 @@ module Fluent::Plugin
       emit = counter.last_warning == nil ? true \
         : (now - counter.last_warning) >= @group_warning_delay_s
       if emit
-        log.warn("log throttle: rate exceeded", log_items(now, group, counter, record))
+        log.warn("log throttle: rate exceeded --- ", log_items(now, group, counter, record))
         counter.last_warning = now
       end
     end
 
     def log_rate_back_down(now, group, counter, record)
-      log.warn("log throttle: rate back down", log_items(now, group, counter, record))
+      log.warn("log throttle: rate back down --- ", log_items(now, group, counter, record))
     end
 
     def log_items(now, group, counter, record)
@@ -159,10 +159,7 @@ module Fluent::Plugin
       rate = aprox_rate if aprox_rate > rate
 
       {'group_key': group,
-       'kubernetes': { 'namespace_name' => record['kubernetes']['namespace_name'],
-                       'pod_name' => record['kubernetes']['pod_name'],
-                       'container_name' => record['kubernetes']['container_name']
-                     },
+       'kubernetes': record['kubernetes'],
        'rate_s': rate,
        'period_s': @group_bucket_period_s,
        'limit': @group_bucket_limit,
